@@ -1,0 +1,51 @@
+# Tunable behaviour. Safe to share; contains no personal paths.
+# Every value here is documented in CLAUDE.md under "How detection works".
+
+[audio]
+# Resolution of the two envelopes. The onset envelope needs to resolve single
+# drumstick clicks; the level envelope only needs to follow the shape of a song.
+onset_hop_seconds = 0.005
+level_hop_seconds = 0.1
+read_block_seconds = 300
+
+[detect]
+# Level classes: room silence, talking, playing.
+smooth_seconds = 2.0
+hysteresis_db = 4.0
+min_gap_seconds = 15.0
+min_song_seconds = 45.0
+tail_seconds = 1.5
+
+# A calibration is distrusted when the classes sit too close together, which
+# happens on sessions recorded start-stop where little talking was captured.
+min_class_gap_db = 6.0
+min_floor_gap_db = 3.0
+
+# Count-in clicks: sharp transients standing above a local rolling baseline.
+click_baseline_seconds = 2.0
+click_ratio = 4.0
+click_min_separation_seconds = 0.15
+beat_range_seconds = [0.30, 1.20]
+evenness = 1.22
+merge_beats = 5.0
+countin_reach_seconds = 20.0
+
+# What makes four even transients a count-in rather than a drummer playing time:
+# quiet before, a sustained rise after. The test is relative, never against an
+# absolute threshold, because gain and band volume vary between takes.
+lead_quiet_seconds = [4.0, 0.2]
+lead_percentile = 25
+follow_loud_seconds = [1.0, 8.0]
+rise_db = 6.0
+
+[review]
+preview_seconds = 12.0
+long_preview_seconds = 45.0
+editor = "Fission"
+
+[export]
+# EBU R128 loudness normalisation, then mp3. Sources peak around -17 dBFS, so
+# normalising matters far more than bitrate. V7 is ~100 kbps and was chosen by
+# listening: these are learning copies, never publishing masters.
+loudnorm = "loudnorm=I=-16:TP=-1.5:LRA=11"
+mp3_quality = "7"

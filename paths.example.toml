@@ -1,0 +1,17 @@
+# Copy to paths.toml and set your own locations. paths.toml is gitignored:
+# it names personal directories and is specific to one machine.
+
+[paths]
+# Where recordings are copied off the recorder and analysed. Local disk.
+inbox = "~/Music/Rehearsal Inbox"
+
+# Where finished mp3s are filed, one folder per rehearsal date.
+archive = "~/Music/Rehearsal Archive"
+
+# The recorder's SD card when mounted.
+card = "/Volumes/ZOOM_H6S"
+
+# Song titles for tab completion: a plain list one per line, or a markdown
+# table with a "Nummer" column. A directory works too, but merges every list
+# it finds, so a single file is usually what you want.
+songlist = "~/Music/songlist.txt"

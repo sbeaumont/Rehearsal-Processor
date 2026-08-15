@@ -1,0 +1,5 @@
+#!/bin/sh
+# Copy new recordings off the H6 card into the inbox.
+# Usage: ./pull [--date 260518] [--card /Volumes/ZOOM_H6S]
+cd "$(dirname "$0")" || exit 1
+exec uv run python -m rehearsal.cli pull "$@"

@@ -1,0 +1,5 @@
+#!/bin/sh
+# Detect, name and export songs from a rehearsal recording.
+# Usage: ./process [--date 260518] [--dry-run] [--inbox PATH] [--archive PATH]
+cd "$(dirname "$0")" || exit 1
+exec uv run python -m rehearsal.cli process "$@"
