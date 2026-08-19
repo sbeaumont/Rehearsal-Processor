@@ -14,6 +14,7 @@ from prompt_toolkit.layout import ConditionalContainer, HSplit, Layout, Window
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
 from prompt_toolkit.styles import Style
 
+from .audio import probe
 from .settings import REVIEW
 from .setlist import suggest
 from .state import key as state_key
@@ -31,7 +32,8 @@ PREVIEWS = {
 
 KEYS = [
     "1 before 12s   2 start 12s   3 start 45s   4 mid 12s   5 mid 45s   t set start",
-    "enter name     s skip        up/down move  o open in Fission   e encode   q quit",
+    "enter name     s skip        m merge up    up/down move  o open in Fission   "
+    "e encode   q quit",
 ]
 
 EDITOR = REVIEW["editor"]
@@ -59,12 +61,6 @@ def length(seconds):
     return f"{int(minutes)}:{remainder:04.1f}"
 
 
-def wall_clock(take):
-    """When the recorder was started, read off the take name."""
-    stamp = take.time
-    return f"{stamp[:2]}:{stamp[2:4]}"
-
-
 def parse_time(text):
     """Seconds from 'm:ss', 'h:mm:ss' or a plain number. None if unparsable."""
     parts = text.split(":")
@@ -86,8 +82,8 @@ def part_holding(take, position):
 
     offset = 0.0
     for path in take.paths:
-        info = sf.info(path)
-        span = info.frames / info.samplerate
+        samplerate, _, frames = probe(path)
+        span = frames / samplerate
         if position < offset + span or path is take.paths[-1]:
             return path, position - offset
         offset += span
@@ -115,21 +111,30 @@ class Review:
         self.remember = remember
         self.detected = [song.start for _, song in segments]
         self.multi_take = len({take.name for take, _ in segments}) > 1
+        self.label_width = max(len(take.label) for take, _ in segments)
 
         self.starts = {}
         self.chosen = {}
+        self.absorbed = set()
         for index, (take, song) in enumerate(segments):
             stored = known.get(state_key(take.name, song.start))
             if not stored:
+                continue
+            if stored.get("absorbed"):
+                self.absorbed.add(index)
                 continue
             if stored["title"]:
                 self.chosen[index] = stored["title"]
             if abs(stored["start"] - song.start) > 0.05:
                 self.starts[index] = stored["start"]
 
-        self.index = next((i for i in range(len(segments)) if i not in self.chosen), 0)
+        shown = self.visible()
+        self.index = next((i for i in shown if i not in self.chosen), shown[0])
         self.player = None
-        self.status = f"resumed {len(self.chosen)} name(s)" if self.chosen else ""
+        resumed = [f"{len(self.chosen)} name(s)" if self.chosen else "",
+                   f"{len(self.absorbed)} merge(s)" if self.absorbed else ""]
+        self.status = ("resumed " + ", ".join(part for part in resumed if part)
+                       if any(resumed) else "")
         self.mode = "browse"
         self.verdict = "quit"
         self.app = self._build()
@@ -139,39 +144,83 @@ class Review:
     def take_at(self, index):
         return self.segments[index][0]
 
+    def visible(self):
+        """Segments still on their own row; a merged one lives inside the row above."""
+        return [index for index in range(len(self.segments)) if index not in self.absorbed]
+
+    def step(self, forward):
+        """Move to the next visible segment in that direction, or stay put."""
+        beyond = [index for index in self.visible()
+                  if (index > self.index if forward else index < self.index)]
+        if beyond:
+            self.index = beyond[0] if forward else beyond[-1]
+
+    def merge_up(self):
+        """Fold this segment into the one above, when detection split one song."""
+        above = [index for index in self.visible() if index < self.index]
+        if not above:
+            self.status = "nothing above to merge into"
+            return
+        target = above[-1]
+        if self.take_at(target).name != self.take_at(self.index).name:
+            self.status = "cannot merge across takes"
+            return
+
+        self.absorbed.add(self.index)
+        self.chosen.pop(self.index, None)
+        self.starts.pop(self.index, None)
+        self.index = target
+        self.remember(self.entries())
+        self.status = (f"merged; segment above now runs "
+                       f"{length(self.song_at(target).duration)}")
+
     def song_at(self, index):
-        """The segment as it stands, including any start the user corrected."""
+        """The segment as it stands, with any correction and anything merged into it."""
         song = self.segments[index][1]
-        if index not in self.starts:
-            return song
-        return replace(song, start=self.starts[index], origin="manual")
+        end = song.end
+        following = index + 1
+        while following in self.absorbed:
+            end = self.segments[following][1].end
+            following += 1
+
+        changes = {}
+        if index in self.starts:
+            changes.update(start=self.starts[index], origin="manual")
+        if end != song.end:
+            changes.update(end=end)
+        return replace(song, **changes) if changes else song
 
     def entries(self):
-        return [(self.take_at(i), self.song_at(i), self.chosen.get(i, ""), self.detected[i])
-                for i in sorted(set(self.chosen) | set(self.starts))]
+        return [(self.take_at(i), self.song_at(i), self.chosen.get(i, ""),
+                 self.detected[i], i in self.absorbed)
+                for i in sorted(set(self.chosen) | set(self.starts) | self.absorbed)]
 
     # ---- rendering
 
     def rows(self):
         out = []
-        for index in range(len(self.segments)):
+        for position, index in enumerate(self.visible(), start=1):
             song = self.song_at(index)
             title = self.chosen.get(index, "")
             bpm = f"{song.bpm:5.1f} BPM" if song.bpm else "         "
-            take = f"{wall_clock(self.take_at(index))} " if self.multi_take else ""
-            text = (f" {index + 1:2d}  {take}{clock(song.start):>9} - {clock(song.end):>9} "
+            take = (f"{self.take_at(index).label:{self.label_width}} "
+                    if self.multi_take else "")
+            text = (f" {position:2d}  {take}{clock(song.start):>9} - {clock(song.end):>9} "
                     f"{length(song.duration):>7}  {song.confidence:6} {song.origin:7} "
                     f"{bpm}  {title}")
             style = "class:current" if index == self.index else (
                 "class:named" if title else "")
-            out.append((style, text.ljust(104) + "\n"))
+            out.append((style, text.ljust(104 + self.label_width) + "\n"))
         return out
 
     def header(self):
-        takes = len({take.name for take, _ in self.segments})
+        shown = self.visible()
+        takes = len({self.take_at(index).name for index in shown})
+        merged = f"   {len(self.absorbed)} merged" if self.absorbed else ""
         return [("class:header",
-                 f" 20{self.date}   {len(self.segments)} segments over {takes} take(s)   "
-                 f"{len(self.chosen)} named   segment {self.index + 1}")]
+                 f" 20{self.date}   {len(shown)} segments over {takes} take(s)   "
+                 f"{len(self.chosen)} named{merged}   "
+                 f"segment {shown.index(self.index) + 1}")]
 
     def status_line(self):
         if self.player and self.player.poll() is None:
@@ -181,7 +230,8 @@ class Review:
     def _build(self):
         self.list_window = Window(
             FormattedTextControl(self.rows, focusable=True,
-                                 get_cursor_position=lambda: Point(0, self.index)),
+                                 get_cursor_position=lambda: Point(
+                                     0, self.visible().index(self.index))),
             wrap_lines=False)
 
         self.title_buffer = Buffer(completer=FuzzyWordCompleter(self.titles),
@@ -242,7 +292,7 @@ class Review:
             self.chosen[self.index] = match or text
             self.remember(self.entries())
             self.status = f'named "{self.chosen[self.index]}"'
-            self.index = min(self.index + 1, len(self.segments) - 1)
+            self.step(forward=True)
         self.mode = "browse"
         self.app.layout.focus(self.list_window)
         return False
@@ -296,13 +346,13 @@ class Review:
         @keys.add("b", filter=browsing)
         def _(event):
             self.stop_playback()
-            self.index = max(self.index - 1, 0)
+            self.step(forward=False)
 
         @keys.add("down", filter=browsing)
         @keys.add("j", filter=browsing)
         def _(event):
             self.stop_playback()
-            self.index = min(self.index + 1, len(self.segments) - 1)
+            self.step(forward=True)
 
         @keys.add("s", filter=browsing)
         def _(event):
@@ -310,7 +360,12 @@ class Review:
             self.chosen.pop(self.index, None)
             self.remember(self.entries())
             self.status = "skipped"
-            self.index = min(self.index + 1, len(self.segments) - 1)
+            self.step(forward=True)
+
+        @keys.add("m", filter=browsing)
+        def _(event):
+            self.stop_playback()
+            self.merge_up()
 
         @keys.add("enter", filter=browsing)
         def _(event):
@@ -375,5 +430,6 @@ def review_session(session, detections, titles, scratch, known, remember):
 
     reviewed, verdict = Review(session.date, segments, titles, scratch,
                                known, remember).run()
-    named = [(take, song, title) for take, song, title, _ in reviewed if title]
+    named = [(take, song, title) for take, song, title, _, absorbed in reviewed
+             if title and not absorbed]
     return named, verdict

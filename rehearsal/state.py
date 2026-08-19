@@ -37,8 +37,9 @@ def save(work_dir, date, entries):
                 "confidence": song.confidence,
                 "origin": song.origin,
                 "title": title,
+                "absorbed": absorbed,
             }
-            for take, song, title, detected_start in entries
+            for take, song, title, detected_start, absorbed in entries
         ],
     }
     path(work_dir).write_text(json.dumps(record, indent=2, ensure_ascii=False),

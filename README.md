@@ -70,6 +70,7 @@ Review shows every detected segment of that date in one list:
 | `4` `5` | play 12 s or 45 s from the middle |
 | enter | type a title, with tab completion against the songlist |
 | `t` | correct this segment's start time |
+| `m` | merge this segment into the one above, when one song was split in two |
 | `s` | skip this segment |
 | `o` | open the source file in Fission |
 | `e` | encode what has been named |
@@ -91,6 +92,10 @@ roughly 100 kbps — these are copies for relistening, not masters.
 Two weak signals that cover each other's failures: a three-class level model separating
 room silence, talking and playing, and a detector for the drummer's count-in clicks.
 Neither works alone. See [docs/detection.md](docs/detection.md).
+
+How those two signals are actually computed — what `soundfile` and `numpy` are doing, and
+the arithmetic behind the thresholds — is in
+[docs/signal-processing.md](docs/signal-processing.md).
 
 The interface has a number of decisions that look arbitrary until you know what went wrong
 without them — see [docs/design.md](docs/design.md). Storage constraints, some of them

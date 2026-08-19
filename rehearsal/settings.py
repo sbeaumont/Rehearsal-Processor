@@ -19,10 +19,15 @@ _paths = _read(PATHS_FILE,
                f"Copy {PATHS_FILE.with_name('paths.example.toml').name} to "
                f"{PATHS_FILE.name} and fill in your own locations.")
 
+RECORDERS = _settings["recorders"]
 AUDIO = _settings["audio"]
-DETECT = _settings["detect"]
 REVIEW = _settings["review"]
 EXPORT = _settings["export"]
+
+DETECT = {name: value for name, value in _settings["detect"].items()
+          if not isinstance(value, dict)}
+OVERRIDES = {name: value for name, value in _settings["detect"].items()
+             if isinstance(value, dict)}
 
 
 def path(name):

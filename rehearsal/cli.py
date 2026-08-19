@@ -6,7 +6,7 @@ from pathlib import Path
 
 from . import card, picker, setlist, settings, state, tools
 from .audio import discover, envelopes
-from .detect import calibrate, count_ins, loud_spans, songs
+from .detect import calibrate, count_ins, loud_spans, songs, tuning
 from .export import already_filed, archive_folder, publish, stage
 from .review import review_session
 
@@ -24,18 +24,19 @@ def clock(seconds):
 
 
 def analyse(session):
+    thresholds = tuning(session.recorder)
     measured = [(take, *envelopes(take)) for take in session.takes]
-    calibration = calibrate([level for _, level, _ in measured])
+    calibration = calibrate([level for _, level, _ in measured], thresholds)
     found = {}
     for take, level, onset in measured:
         spans = loud_spans(level, calibration)
         marks = count_ins(onset, level, calibration)
-        found[take.name] = songs(spans, marks, take.duration)
+        found[take.name] = songs(spans, marks, take.duration, thresholds)
     return calibration, found
 
 
 def report(session, calibration, found, verbose):
-    print(f"\n=== {session.date}  {len(session.takes)} take(s)  "
+    print(f"\n=== {session.date}  {session.recorder}  {len(session.takes)} take(s)  "
           f"{session.duration / 60:.1f} min ===")
     print(f"    silence < {calibration.floor:.1f} dB < talking "
           f"({calibration.quiet_mean:.1f}) < {calibration.split:.1f} dB < playing "

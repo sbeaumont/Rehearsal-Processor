@@ -1,6 +1,13 @@
 # Tunable behaviour. Safe to share; contains no personal paths.
 # Every value here is documented in CLAUDE.md under "How detection works".
 
+# Which recorder a file came from, by extension. The name selects the tuning in
+# [detect.<name>] below. Anything libsndfile cannot open is decoded through ffmpeg,
+# so a format needs nothing here beyond its extension.
+[recorders]
+".wav" = "zoom"
+".m4a" = "iphone"
+
 [audio]
 # Resolution of the two envelopes. The onset envelope needs to resolve single
 # drumstick clicks; the level envelope only needs to follow the shape of a song.
@@ -37,6 +44,16 @@ lead_quiet_seconds = [4.0, 0.2]
 lead_percentile = 25
 follow_loud_seconds = [1.0, 8.0]
 rise_db = 6.0
+
+# Everything above was tuned on the H6.
+[detect.zoom]
+
+# A phone levels the room as it records, which pushes talking and playing together.
+# This session measured 5.3 dB between the classes on its talk-heavy files alone, so
+# every take was dismissed as uncalibrated. Nothing else is overridden: checked against
+# what happened in the room, detection needed no other change.
+[detect.iphone]
+min_class_gap_db = 4.0
 
 [review]
 preview_seconds = 12.0

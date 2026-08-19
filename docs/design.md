@@ -57,6 +57,21 @@ were resumed and jumps to the first unnamed segment.
 Entries are keyed by the **detected** segment start, never the corrected one. Keying by
 the corrected value would orphan the entry the moment detection ran again.
 
+## Merging is a mark, not a deletion
+
+`m` folds a segment into the one above when detection split one song in two. The absorbed
+segment is not removed from the list — it is marked, hidden from the rows, and skipped by
+navigation. Its detected start still exists, which is what lets the merge persist: it is
+written to `session.json` under its own key, and detection producing the same two segments
+next run re-applies it.
+
+Deleting the row instead would shift every index after it, and the entry would have no key
+to be stored under. The segment above takes its end from the last segment absorbed into it
+and keeps its own start, origin and BPM, because its start did not change.
+
+Merging refuses across takes. Two takes are two files with independent timelines, so a
+merged span would be meaningless.
+
 Names live in a dict keyed by segment index, so moving back shows and replaces the title
 already given. Export order follows segment order however you navigated.
 

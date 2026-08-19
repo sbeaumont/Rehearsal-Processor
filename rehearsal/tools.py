@@ -4,7 +4,9 @@ import shutil
 import subprocess
 
 NEEDED = {
-    "ffmpeg": "normalises and encodes the mp3s.  brew install ffmpeg",
+    "ffmpeg": "normalises and encodes the mp3s, and decodes what libsndfile "
+              "cannot read.  brew install ffmpeg",
+    "ffprobe": "reads the length of those files.  It ships with ffmpeg.",
     "afplay": "plays the previews.  It ships with macOS.",
 }
 

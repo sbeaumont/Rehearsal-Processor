@@ -2,16 +2,21 @@ import numpy as np
 import pytest
 
 from rehearsal.audio import LEVEL_HOP_S, ONSET_HOP_S
-from rehearsal.detect import (Calibration, count_ins, loud_spans, otsu, songs)
+from rehearsal.detect import (Calibration, Tuning, count_ins, loud_spans, otsu,
+                              songs, tuning)
+from rehearsal.settings import DETECT
 
 QUIET_DB = -50.0
 LOUD_DB = -28.0
 BEAT_S = 0.5
 
+ZOOM = tuning("zoom")
+
 
 @pytest.fixture
 def calibration():
-    return Calibration(floor=-45.0, split=-38.0, quiet_mean=-50.0, loud_mean=-28.0)
+    return Calibration(floor=-45.0, split=-38.0, quiet_mean=-50.0, loud_mean=-28.0,
+                       tuning=ZOOM)
 
 
 def level(duration_s, loud_spans_s):
@@ -74,17 +79,30 @@ def test_restart_survives_as_its_own_segment(calibration):
     marks = count_ins(onsets(300, clicks), db, calibration)
     assert len(marks) == 2
 
-    found = songs(loud_spans(db, calibration), marks, 300)
+    found = songs(loud_spans(db, calibration), marks, 300, ZOOM)
     assert [song.confidence for song in found] == ["low", "high"]
 
 
 def test_short_level_only_spans_are_dropped(calibration):
     db = level(300, [(10, 20), (60, 200)])
-    found = songs(loud_spans(db, calibration), [], 300)
+    found = songs(loud_spans(db, calibration), [], 300, ZOOM)
     assert len(found) == 1
     assert found[0].origin == "level"
 
 
 def test_unreliable_calibration_is_flagged():
-    assert not Calibration(-45.0, -43.0, -44.0, -42.0).reliable
-    assert Calibration(-45.0, -38.0, -50.0, -28.0).reliable
+    assert not Calibration(-45.0, -43.0, -44.0, -42.0, ZOOM).reliable
+    assert Calibration(-45.0, -38.0, -50.0, -28.0, ZOOM).reliable
+
+
+def test_a_recorder_that_levels_as_it_records_gets_its_own_class_gap():
+    """5 dB between talking and playing is unusable on the H6 and normal on a phone."""
+    squashed = dict(floor=-45.0, split=-38.0, quiet_mean=-40.0, loud_mean=-35.0)
+    assert not Calibration(**squashed, tuning=ZOOM).reliable
+    assert Calibration(**squashed, tuning=tuning("iphone")).reliable
+
+
+def test_an_override_may_not_invent_a_threshold():
+    """A misspelled key in [detect.<recorder>] has to fail, not quietly do nothing."""
+    with pytest.raises(TypeError):
+        Tuning(**(DETECT | {"rise_dB": 3.0}))
