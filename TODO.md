@@ -30,3 +30,12 @@ under 5.0 apart from a 5.0 at 33:19 whose status is unknown.
 Not tuned out, deliberately: one confirmed example is not enough, and `CLAUDE.md` records
 a narrowed lead window that fixed a fabricated restart and silently lost a genuine one.
 Revisit with several sessions' worth of marks confirmed by ear.
+
+## Confirm the pull progress bar on a real card copy
+
+`card.py`'s `pull()` now shows a live per-file bar by polling the destination file's
+growing size from a background thread while `shutil.copy2` runs unchanged. Verified so far
+only with a same-volume APFS copy (instant, copy-on-write — no chance to see the bar move)
+and an artificially slowed copy (confirms the rendering works). Still needs one real pull
+off the H6 card, a genuine cross-volume USB copy, to confirm the destination's on-disk size
+actually grows progressively rather than landing all at once.
